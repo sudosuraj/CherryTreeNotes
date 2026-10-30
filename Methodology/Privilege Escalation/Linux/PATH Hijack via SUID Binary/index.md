@@ -11,3 +11,5 @@ export PATH=/tmp:$PATH
 ```
 
 Check with `strings`/`ltrace` for any unqualified command names the binary shells out to.
+
+Same idea applies to `sudo`: if `sudo -l` grants a binary that lives at a path which doesn't exist yet, or a `secure_path` includes a directory you can write to, just plant the file yourself rather than looking for an existing misconfiguration to abuse.

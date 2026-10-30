@@ -13,3 +13,5 @@ GET /page%20HTTP/1.1%0d%0aHost:%20<backend>%0d%0a%0d%0aPOST%20/endpoint%20HTTP/1
 Host: <frontend>
 ```
 Use this to reach backend-only endpoints or inject parameters the frontend would normally strip/validate.
+
+Another parser-disagreement trigger: a space before the colon in a header name (`Content-Length : 40` instead of `Content-Length: 40`) — some proxies accept it, some backends don't, which is enough of a framing disagreement on its own.

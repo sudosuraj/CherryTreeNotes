@@ -31,3 +31,5 @@ python3 php_filter_chain_generator.py --chain '<?=eval($_POST["x"])?>' | grep '^
 # use the generated php://filter/... string as the LFI path parameter directly
 ```
 If `disabled_functions` blocks `exec`/`system`/`shell_exec`/etc., check whether `putenv()` and `mail()` are still enabled — a Chankro-style `LD_PRELOAD` trick via a fake sendmail binary can still get code execution.
+
+A sanitizer that only strips the literal string `../` once (and only checks the value starts with a letter) can still be bypassed with `php://filter/...` — it starts with a letter and contains no `../` at all, so it sails through unmodified.
