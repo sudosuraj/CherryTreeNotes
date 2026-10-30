@@ -1,17 +1,15 @@
-## <Technique Name>
+# <Technique Name>
 
-**Category:** Recon / Web / AD / Linux PrivEsc / Windows PrivEsc / Pivoting / Post-Ex
-**Exam relevance:** OSCP / CPTS / Both
+**When to use:** <fingerprint / condition that points to this technique>
+**OS / Exam relevance:** Linux / Windows / AD · OSCP / CPTS / Both
 
-### When to use
-Conditions / fingerprints that point to this technique.
-
-### Steps
+## Commands
 ```bash
-
+<command using the standard placeholders — see Methodology/README.md>
 ```
 
-### Notes / Pitfalls
+## Gotchas
+-
 
-### Seen in
-- [<Box Name>](../Writeups/<Platform>/<Year>/<box>.md)
+## Seen in
+- <Platform> / <Box or Challenge name>
