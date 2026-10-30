@@ -1,5 +1,11 @@
 # NoSQL Injection
 
+ORM/REST bracket-syntax filter operator injection — some REST layers (Strapi/MongoDB-backed APIs especially) let a query-string filter key carry an operator directly, so a public "list" endpoint meant to show only `is_public=true` items can be told to show the opposite:
+```bash
+curl -G "<target>/api/items/public" --data-urlencode 'filter[is_public][$ne]' -H "Authorization: Bearer <token>"
+```
+Try `$ne`/`$gt`/`$exists` etc. against any filter param that looks like it maps straight onto a backend query object.
+
 Auth bypass via Mongo operator injection — try this when SQLMap finds nothing on a Node/Mongo stack.
 
 ```bash
