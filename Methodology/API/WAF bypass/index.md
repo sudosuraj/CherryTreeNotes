@@ -25,4 +25,10 @@ SSELECTELECT -> (strip "SELECT" once) -> SELECT
 
 # 8. Unicode confusable / homoglyph characters to dodge an exact-string keyword blacklist
 exec -> 𝙚𝓍𝓮𝘤   (visually similar, different codepoints — bypasses naive string match, some runtimes still execute it as the real keyword)
+
+# 9. URL-encode individual characters in a hostname/path a filter matches by literal string (vhost allowlists, not just query params)
+email.internal.local -> email%2Einternal%2Elocal     # %2E = '.', many allowlist checks compare the raw string before decoding
+
+# 10. MySQL/MariaDB versioned-comment syntax smuggles a blocked keyword past a literal substring filter — the engine still executes it
+SELECT -> /*!50000SELECT*/
 ```
