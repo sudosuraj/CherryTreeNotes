@@ -9,5 +9,6 @@ cat /etc/passwd | grep -v nologin             # other real users to target
 cat /etc/hosts                                 # internal hostnames for pivoting
 sudo -l                                        # before touching linpeas
 grep -ri "password\|secret\|key" /var/www/*/config* 2>/dev/null   # app DB/API creds often reused as OS creds
+cat /etc/*release ; uname -a                   # fingerprint OS/kernel version -> check against known CVEs before enumerating further
 ```
 

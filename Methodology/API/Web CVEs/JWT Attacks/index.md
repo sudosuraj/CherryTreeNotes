@@ -8,3 +8,5 @@
 ```
 
 Always also try: weak/guessable HMAC secret (crack with `hashcat -m 16500`), and swapping RS256→HS256 using the server's public key as the HMAC secret.
+
+If `none` and the RS256→HS256 swap both get rejected, try the reverse direction too — some validators pick the verification method by the claims/key available rather than strictly enforcing the header's declared algorithm (algorithm confusion isn't one-directional).
