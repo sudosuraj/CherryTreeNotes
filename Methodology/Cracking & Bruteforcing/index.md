@@ -12,3 +12,8 @@ If a password policy or onboarding doc leaks the *format* of a password (e.g. a 
 ```bash
 hashcat -O -m <mode> -a3 -1='?u?l?d' 'ProtoTr?1?1?1?11973!' --username hash.txt
 ```
+
+Cisco "type 5" (MD5-crypt) secrets show up often in router/switch config backups found on shares or in email attachments — don't skip them as uncrackable just because they look like a hash blob:
+```bash
+hashcat -m500 -a0 cisco_type5.hash <WORDLIST>
+```
