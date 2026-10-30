@@ -1,0 +1,2 @@
+# smb mslink file
+
