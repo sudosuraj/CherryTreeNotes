@@ -10,9 +10,9 @@ Legend: `[ ]` not started · `[x]` note written + techniques extracted
 - [x] Operation Reroute
 - [x] Do Not Disturb
 - [x] IronHold
-- [ ] Fools Mate, Revenge
-- [ ] Fools Mate
-- [ ] Operation Coldstart
+- [x] Fools Mate, Revenge
+- [x] Fools Mate
+- [x] Operation Coldstart
 - [ ] Operation Promotion
 - [ ] Dead Drop
 - [ ] Silent Monitor
