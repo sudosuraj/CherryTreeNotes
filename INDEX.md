@@ -7,9 +7,9 @@ Legend: `[ ]` not started · `[x]` note written + techniques extracted
 ## TryHackMe
 
 ### 2026
-- [ ] Operation Reroute
-- [ ] Do Not Disturb
-- [ ] IronHold
+- [x] Operation Reroute
+- [x] Do Not Disturb
+- [x] IronHold
 - [ ] Fools Mate, Revenge
 - [ ] Fools Mate
 - [ ] Operation Coldstart
