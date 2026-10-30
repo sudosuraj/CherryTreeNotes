@@ -8,5 +8,6 @@ find / -iname '*backup*' -o -iname '*.kdbx' -o -iname '*.apk' 2>/dev/null
 cat /etc/passwd | grep -v nologin             # other real users to target
 cat /etc/hosts                                 # internal hostnames for pivoting
 sudo -l                                        # before touching linpeas
+grep -ri "password\|secret\|key" /var/www/*/config* 2>/dev/null   # app DB/API creds often reused as OS creds
 ```
 
