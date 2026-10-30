@@ -16,4 +16,13 @@ A few techniques that consistently get past naive filters/WAFs:
 document['coo'+'kie']    # instead of document.cookie
 
 # 5. Case variation alone is rarely enough on its own — combine with one of the above
+
+# 6. Swap a blocked keyword operator for its symbolic equivalent
+OR -> ||     AND -> &&
+
+# 7. Double a blocked keyword so removing it once still leaves a valid one
+SSELECTELECT -> (strip "SELECT" once) -> SELECT
+
+# 8. Unicode confusable / homoglyph characters to dodge an exact-string keyword blacklist
+exec -> 𝙚𝓍𝓮𝘤   (visually similar, different codepoints — bypasses naive string match, some runtimes still execute it as the real keyword)
 ```
