@@ -6,4 +6,4 @@
 <command using the standard placeholders — see Methodology/README.md>
 ```
 
-<!-- optional: a one-line gotcha, or "— <Platform>/<Box>" if it's worth tracing back. delete if nothing to add -->
+<!-- optional: a one-line gotcha. delete if nothing to add -->

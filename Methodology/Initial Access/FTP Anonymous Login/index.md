@@ -9,4 +9,3 @@ ls -la
 get <file>
 ```
 
-— TryHackMe / Operation Coldstart (grabbed `backup.tar.gz` from `public/`, which contained app source)

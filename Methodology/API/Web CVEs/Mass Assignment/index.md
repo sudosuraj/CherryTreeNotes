@@ -7,4 +7,3 @@ If a framework binds the whole request body straight onto a model (e.g. Spring `
 role=<ADMIN_ROLE_VALUE>
 ```
 
-— TryHackMe / IronHold (POST /profile/update, add `role=warden`)

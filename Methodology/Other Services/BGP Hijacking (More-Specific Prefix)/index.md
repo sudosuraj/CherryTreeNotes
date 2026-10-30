@@ -21,4 +21,3 @@ ip addr add <TARGET_IP>/32 dev <iface>
 
 If no sniffer is available on the box, a raw-socket Python script (`AF_INET, SOCK_RAW, IPPROTO_UDP`) parsing DNS names out of UDP/53 payloads works as a minimal DNS query sniffer. Sink-only hijack breaks resolution for the victim — forward/spoof a reply to stay stealthy.
 
-— TryHackMe / Operation Reroute

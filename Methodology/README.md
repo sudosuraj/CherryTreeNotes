@@ -17,8 +17,9 @@ Some Category/
 ```
 
 No writeup content gets committed here — this tree holds distilled, reusable
-technique notes only. Raw source writeups (when dropped) are kept locally in
-Claude's scratchpad for reference while extracting techniques, never committed.
+technique notes only. No box names, writeup titles, or source platform names get
+committed either. Raw source material (when dropped) is kept locally in Claude's
+scratchpad purely for reference while extracting techniques, never committed.
 
 ## Note content convention
 
@@ -34,7 +35,7 @@ Two shapes of `index.md`, depending on whether the node has children:
 <copy-pasteable command>
 ​```
 
-<!-- optional one-liner: a gotcha, or "— <Platform>/<Box>". delete if nothing to add -->
+<!-- optional one-liner: a gotcha. delete if nothing to add -->
 ```
 No prose, no mandatory headers, no empty sections. A technique note's main content
 is the command block — everything else is optional and only earns a line if it adds

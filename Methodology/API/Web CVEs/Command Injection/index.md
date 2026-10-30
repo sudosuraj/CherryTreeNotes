@@ -12,4 +12,3 @@ Any parameter that visibly maps to a shell utility's output (ping, traceroute, e
 
 If a naive filter blocks common separators (`;`, `|`, `&&`), try an unencoded newline instead — it's often missed.
 
-— TryHackMe / Operation Promotion (`ping.php?host=`), Silent Monitor (newline filter bypass)

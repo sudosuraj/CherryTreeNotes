@@ -8,4 +8,3 @@ hashcat --stdout base.txt -r /usr/share/hashcat/rules/dive.rule > wordlist.txt
 hydra -l <USER> -P wordlist.txt <TARGET> <service>
 ```
 
-— TryHackMe / Operation Promotion

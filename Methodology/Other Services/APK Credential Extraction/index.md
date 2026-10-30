@@ -8,4 +8,3 @@ grep -ir password jadx_out/
 grep -ir -E 'api[_-]?key|secret|token' jadx_out/
 ```
 
-— TryHackMe / Dead Drop (hardcoded domain credential in `Config.java`)

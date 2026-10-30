@@ -16,4 +16,3 @@ tunnel_start --tun <tun-name>
 tunnel_list ; route_list   # verify
 ```
 
-— TryHackMe / Dead Drop

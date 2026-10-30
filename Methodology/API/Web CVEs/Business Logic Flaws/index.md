@@ -9,4 +9,3 @@ curl -s -c cookies.txt -b cookies.txt -X POST http://<TARGET>/<api-endpoint> \
   -d '<payload the UI would normally block>'
 ```
 
-— TryHackMe / Fools Mate (JS blocked a winning move in `/js/app.js`; `/api/move` accepted it with no server-side check)

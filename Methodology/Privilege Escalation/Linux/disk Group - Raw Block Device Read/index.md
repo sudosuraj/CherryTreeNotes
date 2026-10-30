@@ -10,4 +10,3 @@ debugfs -w /dev/<root-partition>
 cat /root/root.txt
 ```
 
-— TryHackMe / Do Not Disturb

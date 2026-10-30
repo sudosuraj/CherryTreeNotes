@@ -10,4 +10,3 @@ cat /etc/hosts                                 # internal hostnames for pivoting
 sudo -l                                        # before touching linpeas
 ```
 
-— pattern seen across TryHackMe / Silent Monitor (secret.config, infrastructure.kdbx), Dead Drop (APK in backup/)

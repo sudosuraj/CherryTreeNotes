@@ -10,4 +10,3 @@ curl -s -c cookies.txt -b cookies.txt -X POST http://<TARGET>/<merge-endpoint> \
 
 Works because a plain object with no own `<FLAG_FIELD>` property inherits it through the prototype chain once polluted.
 
-— TryHackMe / Fools Mate, Revenge
