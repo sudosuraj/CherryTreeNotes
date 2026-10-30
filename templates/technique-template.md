@@ -1,15 +1,9 @@
 # <Technique Name>
 
-**When to use:** <fingerprint / condition that points to this technique>
-**OS / Exam relevance:** Linux / Windows / AD · OSCP / CPTS / Both
+<one-line context, only if the command alone isn't self-explanatory — delete otherwise>
 
-## Commands
 ```bash
 <command using the standard placeholders — see Methodology/README.md>
 ```
 
-## Gotchas
--
-
-## Seen in
-- <Platform> / <Box or Challenge name>
+<!-- optional: a one-line gotcha, or "— <Platform>/<Box>" if it's worth tracing back. delete if nothing to add -->

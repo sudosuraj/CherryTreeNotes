@@ -28,22 +28,17 @@ Two shapes of `index.md`, depending on whether the node has children:
 ```
 # <Technique Name>
 
-**When to use:** <fingerprint / condition>
-**OS / Exam relevance:** Linux / Windows / AD · OSCP / CPTS / Both
+<one-line context — only if the command needs it, delete otherwise>
 
-## Commands
 ​```bash
-<copy-pasteable command(s)>
+<copy-pasteable command>
 ​```
 
-## Gotchas
-- 
-
-## Seen in
-- <Platform> / <Box name>
+<!-- optional one-liner: a gotcha, or "— <Platform>/<Box>". delete if nothing to add -->
 ```
-No prose paragraphs — bullets and code blocks only. This gets read under exam time
-pressure, so it needs to be scanned, not read.
+No prose, no mandatory headers, no empty sections. A technique note's main content
+is the command block — everything else is optional and only earns a line if it adds
+something. This gets scanned under exam time pressure, not read.
 
 **Category node (has children)** — just a title and a one-line scope. The tree
 navigation itself shows the children; don't duplicate a listing in the text.
