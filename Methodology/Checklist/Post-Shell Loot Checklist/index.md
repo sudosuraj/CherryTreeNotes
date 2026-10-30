@@ -14,3 +14,5 @@ id ; groups                                     # check group memberships (adm, 
 ls -la /var/log/*.log 2>/dev/null               # readable logs (adm-group access) can leak other users' creds
 ```
 
+On a domain box: once you have any valid AD credential, also try it against secondary business apps reachable from the same network (payment portals, ticketing, internal wikis) — separate-looking systems often share or replicate AD passwords with no independent re-authentication.
+
