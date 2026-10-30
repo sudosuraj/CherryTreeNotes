@@ -1,5 +1,3 @@
 # Cracking & Bruteforcing
 
-```bash
-
-```
+Offline hash cracking and online service brute-forcing, by target type.

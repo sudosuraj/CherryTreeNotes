@@ -13,9 +13,9 @@ Legend: `[ ]` not started · `[x]` note written + techniques extracted
 - [x] Fools Mate, Revenge
 - [x] Fools Mate
 - [x] Operation Coldstart
-- [ ] Operation Promotion
-- [ ] Dead Drop
-- [ ] Silent Monitor
+- [x] Operation Promotion
+- [x] Dead Drop
+- [x] Silent Monitor
 - [ ] Domino
 - [ ] Support
 - [ ] Forward
